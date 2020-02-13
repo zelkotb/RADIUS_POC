@@ -1,35 +1,31 @@
 package com.example.demo.authentication;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.annotation.PostConstruct;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.tinyradius.packet.RadiusPacket;
 
+import com.example.demo.AccountRepo;
+
 
 public class RadiusAuthenticationProvider implements AuthenticationProvider{
 	
 	private static final Logger logger = LoggerFactory.getLogger(RadiusAuthenticationProvider.class);
 
-	@Value("${com.bcp.radius.server}")
-	private String serverConfiguration;
+	@Autowired
+	private AccountRepo accountRepo;
 	
 	private List<NetworkAccessServer> clients = new ArrayList<>();
-	private int clientIndex;
 	
-	@PostConstruct
-	public void initRadiusClients() {
+
+	public void initRadiusClients(String serverConfiguration) {
 		
 		logger.info("initializing Radius clients");
 		List<RadiusServer> servers = RadiusUtil.getServers(serverConfiguration);
@@ -52,69 +48,61 @@ public class RadiusAuthenticationProvider implements AuthenticationProvider{
 			
 			response = authenticateInternally(clients.get(attemptToConnect - 1), username,
 					authentication.getCredentials().toString());
-			clientIndex = attemptToConnect - 1;
 		}
 		if (response == null) {
 			logger.info("calling the server doesn't return any response to user : ", username);
+			throw new RuntimeException("no response from server");
+		}
+		//for 2FA authentication
+		if (response.getPacketType() == RadiusPacket.ACCESS_CHALLENGE) {
+			logger.info("calling the server for access Challenge : ", username, response);
+
+			Account a = new Account();
+			a.setUsername(username);
+			a.setStatus(response.getAttribute(24).getAttributeData());
+			accountRepo.save(a);
 			return null;
 		}
-		if (response.getPacketType() == RadiusPacket.ACCESS_CHALLENGE) {
-			logger.info("calling the server doesn't return the response for user : ", username, response);
-	        BufferedReader reader =  
-	                   new BufferedReader(new InputStreamReader(System.in)); 
-	        String otp =null;
-	        // Reading data using readLine 
-	        try {
-				otp = reader.readLine();
-				reader.close();
-				
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			authenticateInternally2(clients.get(clientIndex), username, otp, 
-					response.getAttribute(24).getAttributeData());
-			
-			return new UsernamePasswordAuthenticationToken(username, "", new ArrayList<>());
-		}
 		if (response.getPacketType() == RadiusPacket.ACCESS_ACCEPT) {
-			logger.info("You have benn authenticated succefully M. user :", username);
+			logger.info("You have ben authenticated succefully M. user :"+ username);
 			return new UsernamePasswordAuthenticationToken(username, "", new ArrayList<>());
 		} else {
 			logger.info("The server return the response for the user :", username, response);
-			return null;
+			throw new RuntimeException("wrong credentials");
 		}
 		
 	}
 	
 	private RadiusPacket authenticateInternally(NetworkAccessServer client, String username, String password) {
 		
-		logger.info("Calling radius server to authenticate user :", username);
-		
-		try {
+		Account a1 = accountRepo.findByUsername(username);
+		if(a1==null) {
+			logger.info("Calling radius server to authenticate user :"+ username);
 			
-			return client.authenticate(username, password);
+			try {
+				
+				return client.authenticate(username, password);
+				
+			} catch (Exception e) {
+				
+				logger.error("an error occured while calling the server", e);
+				return null;
+			}
+		}else {
+			logger.info("Calling radius server to authenticate user :2", username);
 			
-		} catch (Exception e) {
-			
-			logger.error("an error occured while calling the server", e);
-			return null;
+			try {
+				accountRepo.deleteById(a1.getId());
+				return client.authenticate(username, password, a1.getStatus());
+				
+			} catch (Exception e) {
+				
+				logger.error("an error occured while calling the server", e);
+				return null;
+			}
 		}
-	}
-	
-private RadiusPacket authenticateInternally2(NetworkAccessServer client, String username, String otp, byte[] status) {
 		
-		logger.info("Calling radius server to authenticate user :2", username);
 		
-		try {
-			
-			return client.authenticate(username, otp, status);
-			
-		} catch (Exception e) {
-			
-			logger.error("an error occured while calling the server", e);
-			return null;
-		}
 	}
 
 	@Override

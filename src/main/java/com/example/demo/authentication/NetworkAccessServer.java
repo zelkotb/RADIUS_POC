@@ -14,15 +14,17 @@ import org.tinyradius.util.RadiusClient;
 import org.tinyradius.util.RadiusEndpoint;
 import org.tinyradius.util.RadiusException;
 
-
-
+/*
+ * 
+ * methods for radius authentication
+ * 
+ * 
+ */
 public class NetworkAccessServer {
 	
 	private static final Logger logger = LoggerFactory.getLogger(NetworkAccessServer.class);
 	
 	private byte[] state;
-	
-	private RadiusPacket packet;
 	
 
 	public byte[] getState() {
@@ -64,7 +66,7 @@ public class NetworkAccessServer {
     }
 
 	public RadiusPacket authenticate(String username, String password) throws IOException, RadiusException {
-		logger.info("we are tring to send the request : for user :",username);
+		logger.info("we are tring to send the request : for user :"+username);
     	AccessRequest ar = new AccessRequest(username, password);
 
         //attribute that we send to server
@@ -74,15 +76,7 @@ public class NetworkAccessServer {
         RadiusPacket response = radiusClient.authenticate(ar);
         return response;
 	}
-	
-	public RadiusPacket sendAccesChanllengeResp(String username, String password, String otp) throws IOException, RadiusException {
-		System.out.println("this is my second request :");
-		AccessRequest ar = new AccessRequest(username,password);
-		packet = radiusClient.authenticate(ar);
-		AccessRequest arc = new AccessRequest(username,otp);
-		arc.addAttribute(new RadiusAttribute(24,packet.getAttribute(24).getAttributeData()));
-		return radiusClient.authenticate(arc);
-	}
+
 
 	public RadiusPacket authenticate(String username, String otp, byte[] status) throws IOException, RadiusException {
 		System.out.println("this is my second request :");
