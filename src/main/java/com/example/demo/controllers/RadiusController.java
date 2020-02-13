@@ -16,7 +16,10 @@ import com.example.demo.authentication.Account;
 import com.example.demo.authentication.RadiusAuthenticationProvider;
 
 
-
+/*
+ * 
+ * @Zakaria El KOTB
+ */
 
 @RestController
 public class RadiusController {
@@ -50,7 +53,7 @@ public class RadiusController {
 			return "You have ben authenticated succefully M. user :" + SecurityContextHolder
 					.getContext().getAuthentication().getName();
 		}else {
-			return "One time password has been send to your mobile phone!!";
+			return "One-Time password has been sent to mobile phone. Enter it to login";
 		}
 		
 	}
